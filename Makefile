@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := app-template
+PROJECT_NAME := ws2812b_strip
 
 include $(IDF_PATH)/make/project.mk
 

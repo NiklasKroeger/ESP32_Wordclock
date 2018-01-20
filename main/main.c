@@ -1,42 +1,35 @@
-#include "freertos/FreeRTOS.h"
-#include "esp_wifi.h"
-#include "esp_system.h"
-#include "esp_event.h"
-#include "esp_event_loop.h"
-#include "nvs_flash.h"
-#include "driver/gpio.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include "esp32_digital_led_lib.h"
 
-esp_err_t event_handler(void *ctx, system_event_t *event)
-{
-    return ESP_OK;
+strand_t STRANDS[] = {
+	{.rmtChannel = 0,
+	 .gpioNum = 17,
+	 .ledType = LED_WS2812B_V3,
+	 .brightLimit = 32,
+	 .numPixels = 20,
+	 .pixels = NULL,
+	 ._stateVars = NULL},
+};
+
+int STRANDCNT = sizeof(STRANDS) / sizeof(STRANDS[0]);
+
+void app_main() {
+	ets_printf("Initializing strands...\n");
+	digitalLeds_initStrands(STRANDS, STRANDCNT);
+
+	// define the on and off color for the leds and get a pointer to the
+	// strand we want to work with
+	pixelColor_t color1 = pixelFromRGB(100, 100, 100);
+	pixelColor_t colorOff = pixelFromRGB(0, 0, 0);
+	strand_t * pStrand = &STRANDS[0];
+	while (true) {
+		for (int i = 0; i < pStrand->numPixels; i++) {
+			// TODO: this always leaves the last LED on
+			pStrand->pixels[i] = color1;
+			pStrand->pixels[i-1] = colorOff;
+			digitalLeds_updatePixels(pStrand);
+			vTaskDelay(100 / portTICK_PERIOD_MS);
+		}
+	}
 }
-
-void app_main(void)
-{
-    nvs_flash_init();
-    tcpip_adapter_init();
-    ESP_ERROR_CHECK( esp_event_loop_init(event_handler, NULL) );
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
-    ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
-    ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
-    wifi_config_t sta_config = {
-        .sta = {
-            .ssid = "access_point_name",
-            .password = "password",
-            .bssid_set = false
-        }
-    };
-    ESP_ERROR_CHECK( esp_wifi_set_config(WIFI_IF_STA, &sta_config) );
-    ESP_ERROR_CHECK( esp_wifi_start() );
-    ESP_ERROR_CHECK( esp_wifi_connect() );
-
-    gpio_set_direction(GPIO_NUM_4, GPIO_MODE_OUTPUT);
-    int level = 0;
-    while (true) {
-        gpio_set_level(GPIO_NUM_4, level);
-        level = !level;
-        vTaskDelay(300 / portTICK_PERIOD_MS);
-    }
-}
-
