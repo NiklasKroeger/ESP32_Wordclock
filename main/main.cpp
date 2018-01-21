@@ -26,6 +26,14 @@ extern "C" {
 	int app_main();
 }
 
+void apply_mask(strand_t *pStrand, bool mask[],
+		pixelColor_t colorOn, pixelColor_t colorOff) {
+	for (int i=0; i < pStrand->numPixels; i++) {
+		mask[i] ? pStrand->pixels[i] = colorOn :
+			  pStrand->pixels[i] = colorOff;
+	}
+}
+
 int app_main() {
 	ESP_LOGI("app_main", "*********************");
 	ESP_LOGI("app_main", "* starting app_main *");
@@ -36,24 +44,22 @@ int app_main() {
 
 	// define the on and off color for the leds and get a pointer to the
 	// strand we want to work with
-	pixelColor_t color1 = pixelFromRGB(50, 50, 50);
+	pixelColor_t colorOn = pixelFromRGB(50, 50, 50);
 	pixelColor_t colorOff = pixelFromRGB(0, 0, 0);
 	strand_t * pStrand = &STRANDS[0];
 
 	// Try and set some LEDs on by using a mask
-	bool mask[pStrand->numPixels] = { false };
+	bool mask[pStrand->numPixels] = { 0, 1, 1, 1, 0, 1, 1 };
 	int len = sizeof(mask) / sizeof(mask[0]);
 	print_mask(mask, len);
 
 	while (true) {
-
-		for (int i = 0; i < pStrand->numPixels; i++) {
-			pStrand->pixels[i] = color1;
-			pStrand->pixels[i-1] = colorOff;
-			digitalLeds_updatePixels(pStrand);
-			vTaskDelay(500 / portTICK_PERIOD_MS);
-		}
-		pStrand->pixels[pStrand->numPixels-1] = colorOff;
+		apply_mask(pStrand, mask, colorOn, colorOff);
+		digitalLeds_updatePixels(pStrand);
+		vTaskDelay(500 / portTICK_PERIOD_MS);
+		//for (int i=0; i < pStrand->numPixels; i++) {
+		//	mask[i] = !mask[i];
+		//}
 	}
 }
 
