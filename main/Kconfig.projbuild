@@ -1,0 +1,18 @@
+menu "Wifi Configuration"
+
+config WIFI_SSID
+	string "Wifi SSID"
+	default "myssid"
+	help
+		SSID (network name) of the network to connect to.
+
+config WIFI_PASSWORD
+	string "Wifi Password"
+	default "myPassword"
+	help
+		Wifi Password (WPA or WPA2) for the network
+
+		Can be left blank if network is not secured
+
+endmenu
+
