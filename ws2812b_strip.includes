@@ -1,4 +1,4 @@
-main/esp32_digital_led_lib/include
+components/esp32_digital_led_lib/include
 /home/niklas/Code/esp32/esp-idf/components/app_trace/include
 /home/niklas/Code/esp32/esp-idf/components/app_update/include
 /home/niklas/Code/esp32/esp-idf/components/aws_iot/include
