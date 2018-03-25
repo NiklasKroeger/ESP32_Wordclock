@@ -1,3 +1,4 @@
+main/main.h
 main/esp32_digital_led_lib/esp32_digital_led_lib.cpp
 main/esp32_digital_led_lib/include/esp32_digital_led_lib.h
 main/main.cpp

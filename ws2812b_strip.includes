@@ -43,3 +43,4 @@ main/esp32_digital_led_lib/include
 /home/niklas/Code/esp32/esp-idf/components/wear_levelling/include
 /home/niklas/Code/esp32/esp-idf/components/wpa_supplicant/include
 /home/niklas/Code/esp32/esp-idf/components/xtensa-debug-module/include
+main

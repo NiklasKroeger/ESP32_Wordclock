@@ -1,3 +1,5 @@
+#include "main.h"
+
 #include <esp_log.h>
 #include <esp_wifi.h>
 #include <esp_event_loop.h>
@@ -37,13 +39,6 @@ int STRANDCNT = sizeof(STRANDS) / sizeof(STRANDS[0]);
 // event group to signal wifi connection and readiness
 static EventGroupHandle_t wifi_event_group;
 const int CONNECTED_BIT = BIT0;
-
-// function declarations
-void apply_mask(strand_t *pStrand, bool mask[]);
-static void refresh_time(void);
-static void init_wifi(void);
-static void init_sntp(void);
-static esp_err_t event_handler(void *ctx, system_event_t *event);
 
 void print_mask(bool mask[], int len) {
 	for (int i = 0; i < len; i++) {
