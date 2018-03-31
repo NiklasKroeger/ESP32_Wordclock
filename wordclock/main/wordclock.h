@@ -1,5 +1,5 @@
-#ifndef MAIN_H
-#define MAIN_H
+#ifndef WORDCLOCK_H
+#define WORDCLOCK_H
 
 #include <esp_err.h>
 #include <esp_event.h>
@@ -12,4 +12,4 @@ static void init_wifi(void);
 static void init_sntp(void);
 static esp_err_t event_handler(void *ctx, system_event_t *event);
 
-#endif // MAIN_H
+#endif // WORDCLOCK_H
