@@ -63,31 +63,10 @@ void apply_mask(strand_t *pStrand, bool mask[],
     }
 }
 
-static void refresh_time(void) {
-    ESP_ERROR_CHECK(nvs_flash_init());
-    init_wifi();
-    xEventGroupWaitBits(wifi_event_group,
-                        CONNECTED_BIT,
-                        false,
-                        true,
-                        portMAX_DELAY);
-    init_sntp();
-
-    time_t now = 0;
-    struct tm timeinfo = { 0 };
-    int retry = 0;
-    const int max_retry = 10;
-    while (timeinfo.tm_year < (2016 - 1900) && ++retry < max_retry) {
-        ESP_LOGI("refresh_time",
-                 "Waiting for system time to be set... (%d/%d)",
-                 retry, max_retry);
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
-        time(&now);
-        localtime_r(&now, &timeinfo);
-    }
-    ESP_ERROR_CHECK(esp_wifi_stop());
-}
-
+/* Start our wifi so we can connect to our ntp server
+ * TODO: This should probably be replaced by the convenient
+ * WifiManager component for ESP32
+ */
 static void init_wifi(void) {
     tcpip_adapter_init();
     wifi_event_group = xEventGroupCreate();
@@ -96,11 +75,10 @@ static void init_wifi(void) {
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     wifi_config_t wifi_config = {
-        // TODO: Not allowed in c++.
-        //		.sta = {
-        //			.ssid = WIFI_SSID,
-        //			.password = WIFI_PASS,
-        //		},
+        .sta = {
+            .ssid = WIFI_SSID,
+            .password = WIFI_PASS,
+        },
     };
     ESP_LOGI("init_wifi", "Setting up wifi for SSID %s...",
              wifi_config.sta.ssid);
@@ -109,6 +87,8 @@ static void init_wifi(void) {
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
+/* Pull the current time from pool.ntp.org
+ */
 static void init_sntp(void) {
     ESP_LOGI("init_sntp", "Initializing SNTP");
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
@@ -134,45 +114,77 @@ static esp_err_t event_handler(void *ctx, system_event_t *event) {
     return ESP_OK;
 }
 
-int app_main() {
+/* Run the wordclock logic
+ *
+ * This function takes the current time and determins how it should be displayed
+ * using our defined ws2812b LED strand
+ */
+void run_wordclock(void *pvParameter)
+{
+    ESP_LOGI("run_wordclock", "Initializing %d strand(s)...", STRANDCNT);
+    digitalLeds_initStrands(STRANDS, STRANDCNT);
+
+    time_t now;
+    struct tm *timeinfo;
+    time(&now);
+    timeinfo = localtime(&now);
+    if (timeinfo->tm_year < (2016 - 1900)) {
+            ESP_LOGI("run_wordclock", "Time is not set yet. Connecting to WiFi and getting time over NTP.");
+            refresh_time();
+            // update 'now' variable with current time
+            time(&now);
+    }
+    while (true) {
+        log_time();
+        vTaskDelay(2500 / portTICK_PERIOD_MS);
+    }
+}
+
+/* Helper function to refresh the system time by connecting to wifi and
+ * getting the current time via ntp
+ */
+static void refresh_time(void)
+{
+    ESP_ERROR_CHECK( nvs_flash_init() );
+    init_wifi();
+    xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT,
+                        false, true, portMAX_DELAY);
+    init_sntp();
+
+    // wait for time to be set
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
+    int retry = 0;
+    const int retry_count = 10;
+    while(timeinfo.tm_year < (2016 - 1900) && ++retry < retry_count) {
+        ESP_LOGI("refresh_time", "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        time(&now);
+        localtime_r(&now, &timeinfo);
+    }
+
+    ESP_ERROR_CHECK( esp_wifi_stop() );
+}
+
+/* Helper function to log the current time via ESP_LOGI in a human readable
+ * form
+ */
+static void log_time()
+{
+    time_t now;
+    time(&now);
+    struct tm *timeinfo;
+    timeinfo = localtime(&now);
+    ESP_LOGI("time", "%s", asctime(timeinfo));
+}
+
+/* Main entry point of the app. Start all necessary tasks as separate
+ * FreeRTOS tasks so they run in parallel
+ */
+void app_main() {
     ESP_LOGI("app_main", "*********************");
     ESP_LOGI("app_main", "* starting app_main *");
     ESP_LOGI("app_main", "*********************");
 
-    ESP_LOGI("app_main", "Initializing %d strand(s)...", STRANDCNT);
-    digitalLeds_initStrands(STRANDS, STRANDCNT);
-
-    ESP_LOGI("app_main", "Getting current time...");
-    time_t now;
-    struct tm timeinfo;
-    time(&now);
-    localtime_r(&now, &timeinfo);
-    // check if time is set correctly
-    if (timeinfo.tm_year < (2016 - 1900)) {
-        ESP_LOGI("app_main", "Time not set correctly. Getting time over NTP...");
-        ESP_LOGI("app_main", "%d", timeinfo.tm_year);
-        //		refresh_time();
-    }
-    ESP_LOGI("app_main", "Done setting time...");
-
-    // define the on and off color for the leds and get a pointer to the
-    // strand we want to work with
-    pixelColor_t colorOn = pixelFromRGB(10, 10, 10);
-    pixelColor_t colorOff = pixelFromRGB(0, 0, 0);
-    strand_t * pStrand = &STRANDS[0];
-
-    // Try and set some LEDs on by using a mask
-    bool mask[pStrand->numPixels];
-    memset(mask, false, pStrand->numPixels*sizeof(bool));
-    int len = sizeof(mask) / sizeof(mask[0]);
-    print_mask(mask, len);
-
-    while (true) {
-        apply_mask(pStrand, mask, colorOn, colorOff);
-        digitalLeds_updatePixels(pStrand);
-        vTaskDelay(1500 / portTICK_PERIOD_MS);
-        for (int i=0; i < pStrand->numPixels; i++) {
-            mask[i] = !mask[i];
-        }
-    }
+    xTaskCreate(&run_wordclock, "run_wordclock", 4096, NULL, 5, NULL);
 }
