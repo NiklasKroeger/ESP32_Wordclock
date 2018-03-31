@@ -19,6 +19,9 @@
 
 #include <apps/sntp/sntp.h>
 
+#include <string.h>
+#include <stdbool.h>
+
 #include "esp32_digital_led_lib.h"
 
 #define WIFI_SSID CONFIG_WIFI_SSID
@@ -51,8 +54,12 @@ void print_mask(bool mask[], int len) {
 void apply_mask(strand_t *pStrand, bool mask[],
                 pixelColor_t colorOn, pixelColor_t colorOff) {
     for (int i=0; i < pStrand->numPixels; i++) {
-        mask[i] ? pStrand->pixels[i] = colorOn :
-                pStrand->pixels[i] = colorOff;
+        if (mask[i]) {
+            pStrand->pixels[i] = colorOn;
+        }
+        else {
+            pStrand->pixels[i] = colorOff;
+        }
     }
 }
 
@@ -127,10 +134,6 @@ static esp_err_t event_handler(void *ctx, system_event_t *event) {
     return ESP_OK;
 }
 
-extern "C" {
-int app_main();
-}
-
 int app_main() {
     ESP_LOGI("app_main", "*********************");
     ESP_LOGI("app_main", "* starting app_main *");
@@ -154,21 +157,22 @@ int app_main() {
 
     // define the on and off color for the leds and get a pointer to the
     // strand we want to work with
-    pixelColor_t colorOn = pixelFromRGB(50, 50, 50);
+    pixelColor_t colorOn = pixelFromRGB(10, 10, 10);
     pixelColor_t colorOff = pixelFromRGB(0, 0, 0);
     strand_t * pStrand = &STRANDS[0];
 
     // Try and set some LEDs on by using a mask
-    bool mask[pStrand->numPixels] = { 0, 1, 1, 1, 0, 1, 1 };
+    bool mask[pStrand->numPixels];
+    memset(mask, false, pStrand->numPixels*sizeof(bool));
     int len = sizeof(mask) / sizeof(mask[0]);
     print_mask(mask, len);
 
     while (true) {
         apply_mask(pStrand, mask, colorOn, colorOff);
         digitalLeds_updatePixels(pStrand);
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-        //for (int i=0; i < pStrand->numPixels; i++) {
-        //	mask[i] = !mask[i];
-        //}
+        vTaskDelay(1500 / portTICK_PERIOD_MS);
+        for (int i=0; i < pStrand->numPixels; i++) {
+            mask[i] = !mask[i];
+        }
     }
 }

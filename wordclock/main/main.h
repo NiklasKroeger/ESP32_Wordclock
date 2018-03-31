@@ -6,7 +6,7 @@
 
 #include "esp32_digital_led_lib.h"
 
-void apply_mask(strand_t *pStrand, bool mask[]);
+void apply_mask(strand_t *pStrand, bool mask[], pixelColor_t colorOn, pixelColor_t colorOff);
 static void refresh_time(void);
 static void init_wifi(void);
 static void init_sntp(void);
