@@ -24,9 +24,8 @@
 
 #include "esp32_digital_led_lib.h"
 
-#define WIFI_SSID CONFIG_WIFI_SSID
-#define WIFI_PASS CONFIG_WIFI_PASSWORD
-
+#include "http_server.h"
+#include "wifi_manager.h"
 
 // define LED strands
 strand_t STRANDS[] = {
@@ -39,10 +38,6 @@ strand_t STRANDS[] = {
      ._stateVars = NULL},
 };
 int STRANDCNT = sizeof(STRANDS) / sizeof(STRANDS[0]);
-
-// event group to signal wifi connection and readiness
-static EventGroupHandle_t wifi_event_group;
-const int CONNECTED_BIT = BIT0;
 
 void print_mask(bool mask[], int len) {
     for (int i = 0; i < len; i++) {
@@ -63,30 +58,6 @@ void apply_mask(strand_t *pStrand, bool mask[],
     }
 }
 
-/* Start our wifi so we can connect to our ntp server
- * TODO: This should probably be replaced by the convenient
- * WifiManager component for ESP32
- */
-static void init_wifi(void) {
-    tcpip_adapter_init();
-    wifi_event_group = xEventGroupCreate();
-    ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASS,
-        },
-    };
-    ESP_LOGI("init_wifi", "Setting up wifi for SSID %s...",
-             wifi_config.sta.ssid);
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-}
-
 /* Pull the current time from pool.ntp.org
  */
 static void init_sntp(void) {
@@ -94,24 +65,6 @@ static void init_sntp(void) {
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
     sntp_setservername(0, "pool.ntp.org");
     sntp_init();
-}
-
-static esp_err_t event_handler(void *ctx, system_event_t *event) {
-    switch (event->event_id){
-    case SYSTEM_EVENT_STA_START:
-        esp_wifi_connect();
-        break;
-    case SYSTEM_EVENT_STA_GOT_IP:
-        xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
-        break;
-    case SYSTEM_EVENT_STA_DISCONNECTED:
-        esp_wifi_connect();
-        xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
-        break;
-    default:
-        break;
-    }
-    return ESP_OK;
 }
 
 /* Run the wordclock logic
@@ -148,16 +101,13 @@ void run_wordclock(void *pvParameter)
 static void refresh_time(void)
 {
     ESP_LOGI("refresh_time", "Starting refresh_time()")
-    init_wifi();
-    xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT,
-                        false, true, portMAX_DELAY);
     init_sntp();
 
     // wait for time to be set
     time_t now = 0;
     struct tm timeinfo = { 0 };
     int retry = 0;
-    const int retry_count = 10;
+    const int retry_count = 100;
     while(timeinfo.tm_year < (2016 - 1900) && ++retry < retry_count) {
         ESP_LOGI("refresh_time", "Waiting for system time to be set... (%d/%d)", retry, retry_count);
         vTaskDelay(2000 / portTICK_PERIOD_MS);
@@ -200,6 +150,9 @@ void app_main() {
     ESP_LOGI("app_main", "*********************");
 
     ESP_ERROR_CHECK( nvs_flash_init() );
+
+    xTaskCreate(&http_server, "http_server", 2048, NULL, 5, NULL);
+    xTaskCreate(&wifi_manager, "wifi_manager", 4096, NULL, 4, NULL);
 
     xTaskCreate(&continuous_refresh_time, "continuous_refresh_time", 4096, NULL, 5, NULL);
     xTaskCreate(&run_wordclock, "run_wordclock", 4096, NULL, 5, NULL);
