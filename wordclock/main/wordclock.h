@@ -14,6 +14,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event);
 
 static void log_time(void);
 static void refresh_time(void);
+void continuous_refresh_time(void *pvParameter);
 
 void run_wordclock(void *pvParameter);
 

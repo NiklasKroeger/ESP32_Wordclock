@@ -128,11 +128,13 @@ void run_wordclock(void *pvParameter)
     struct tm *timeinfo;
     time(&now);
     timeinfo = localtime(&now);
-    if (timeinfo->tm_year < (2016 - 1900)) {
-            ESP_LOGI("run_wordclock", "Time is not set yet. Connecting to WiFi and getting time over NTP.");
-            refresh_time();
+    while (timeinfo->tm_year < (2016 - 1900)) {
+            // System time is not yet set, another task takes care of that so we just wait here
+            ESP_LOGI("run_wordclock", "Time is not set yet... Waiting");
             // update 'now' variable with current time
             time(&now);
+            timeinfo = localtime(&now);
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
     while (true) {
         log_time();
@@ -145,7 +147,7 @@ void run_wordclock(void *pvParameter)
  */
 static void refresh_time(void)
 {
-    ESP_ERROR_CHECK( nvs_flash_init() );
+    ESP_LOGI("refresh_time", "Starting refresh_time()")
     init_wifi();
     xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT,
                         false, true, portMAX_DELAY);
@@ -164,6 +166,17 @@ static void refresh_time(void)
     }
 
     ESP_ERROR_CHECK( esp_wifi_stop() );
+}
+
+/* Continously run the refresh_time() function to make sure we don't
+ * drift too far from ntp time. Delay between resync is 1 hour.
+ */
+void continuous_refresh_time(void *pvParameter)
+{
+    while (true) {
+        refresh_time();
+        vTaskDelay(1000*60 / portTICK_PERIOD_MS);
+    }
 }
 
 /* Helper function to log the current time via ESP_LOGI in a human readable
@@ -186,5 +199,8 @@ void app_main() {
     ESP_LOGI("app_main", "* starting app_main *");
     ESP_LOGI("app_main", "*********************");
 
+    ESP_ERROR_CHECK( nvs_flash_init() );
+
+    xTaskCreate(&continuous_refresh_time, "continuous_refresh_time", 4096, NULL, 5, NULL);
     xTaskCreate(&run_wordclock, "run_wordclock", 4096, NULL, 5, NULL);
 }
