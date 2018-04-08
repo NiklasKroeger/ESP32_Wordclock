@@ -118,17 +118,6 @@ static void refresh_time(void)
     ESP_ERROR_CHECK( esp_wifi_stop() );
 }
 
-/* Continously run the refresh_time() function to make sure we don't
- * drift too far from ntp time. Delay between resync is 1 hour.
- */
-void continuous_refresh_time(void *pvParameter)
-{
-    while (true) {
-        refresh_time();
-        vTaskDelay(1000*60 / portTICK_PERIOD_MS);
-    }
-}
-
 /* Helper function to log the current time via ESP_LOGI in a human readable
  * form
  */
@@ -151,9 +140,13 @@ void app_main() {
 
     ESP_ERROR_CHECK( nvs_flash_init() );
 
+    setenv("TZ", "WEST-1DWEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00", 1);
+    tzset();
+
     xTaskCreate(&http_server, "http_server", 2048, NULL, 5, NULL);
     xTaskCreate(&wifi_manager, "wifi_manager", 4096, NULL, 4, NULL);
 
-    xTaskCreate(&continuous_refresh_time, "continuous_refresh_time", 4096, NULL, 5, NULL);
     xTaskCreate(&run_wordclock, "run_wordclock", 4096, NULL, 5, NULL);
+
+    refresh_time();
 }
