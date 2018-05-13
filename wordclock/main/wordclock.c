@@ -30,10 +30,10 @@
 // define LED strands
 strand_t STRANDS[] = {
     {.rmtChannel = 0,
-     .gpioNum = 17,
+     .gpioNum = 13,
      .ledType = LED_WS2812B_V3,
      .brightLimit = 32,
-     .numPixels = 20,
+     .numPixels = 1,
      .pixels = NULL,
      ._stateVars = NULL},
 };
@@ -76,6 +76,9 @@ void run_wordclock(void *pvParameter)
 {
     ESP_LOGI("run_wordclock", "Initializing %d strand(s)...", STRANDCNT);
     digitalLeds_initStrands(STRANDS, STRANDCNT);
+    strand_t *pStrand = &STRANDS[0];
+    pixelColor_t colorOn = pixelFromRGB(100, 100, 100);
+    pixelColor_t colorOff = pixelFromRGB(0, 0, 0);
 
     time_t now;
     struct tm *timeinfo;
@@ -91,6 +94,11 @@ void run_wordclock(void *pvParameter)
     }
     while (true) {
         log_time();
+        pStrand->pixels[0] = colorOn;
+        digitalLeds_updatePixels(pStrand);
+        vTaskDelay(2500 / portTICK_PERIOD_MS);
+        pStrand->pixels[0] = colorOff;
+        digitalLeds_updatePixels(pStrand);
         vTaskDelay(2500 / portTICK_PERIOD_MS);
     }
 }
